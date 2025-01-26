@@ -62,16 +62,6 @@
             cursor: pointer;
         }
 
-        .upload-section.dragover {
-            background: rgba(37, 99, 235, 0.1);
-        }
-
-        .metric-grid {
-            display: grid;
-            gap: 1.5rem;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-        }
-
         .nps-score {
             font-size: 3.5rem;
             font-weight: 700;
@@ -122,18 +112,6 @@
             gap: 1rem;
         }
 
-        .alert-success {
-            background: #ecfdf5;
-            color: #047857;
-            border-left: 4px solid #10b981;
-        }
-
-        .alert-error {
-            background: #fef2f2;
-            color: #dc2626;
-            border-left: 4px solid #ef4444;
-        }
-
         .spinner {
             width: 24px;
             height: 24px;
@@ -159,11 +137,6 @@
             display: inline-flex;
             align-items: center;
             gap: 0.5rem;
-        }
-
-        button:hover {
-            background: var(--secondary);
-            transform: translateY(-2px);
         }
 
         .nps-ranges {
@@ -222,7 +195,6 @@
 
         <div class="card">
             <div class="upload-section" id="dropZone">
-                <input type="file" id="fileInput" accept=".csv" hidden>
                 <div id="uploadContent">
                     <div class="spinner" id="spinner"></div>
                     <i class="fas fa-cloud-upload-alt fa-3x" style="color: var(--primary); margin-bottom: 1rem;"></i>
@@ -300,8 +272,96 @@
     </div>
 
     <script>
-        // ... (Keep the previous JavaScript code from working version) ...
-        // Only update the showResults and exportCSV functions:
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = '.csv';
+        fileInput.hidden = true;
+        document.body.appendChild(fileInput);
+
+        // Drag & Drop Handlers
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) handleFile(files[0]);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const files = e.target.files;
+            if (files.length > 0) handleFile(files[0]);
+        });
+
+        async function handleFile(file) {
+            showLoading(true);
+            clearAlerts();
+
+            try {
+                if (!file) throw new Error('No file selected');
+                if (file.size > 10 * 1024 * 1024) throw new Error('File size exceeds 10MB limit');
+                if (!file.name.endsWith('.csv')) throw new Error('Only CSV files are supported');
+
+                const text = await readFile(file);
+                const result = processCSV(text);
+                showResults(result);
+                showAlert(`${result.validRows} records processed successfully`, 'success');
+            } catch (error) {
+                showAlert(error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function readFile(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = () => reject(new Error('Error reading file'));
+                reader.readAsText(file);
+            });
+        }
+
+        function processCSV(csv) {
+            const rows = csv.split('\n').filter(row => row.trim());
+            if (rows.length < 1) throw new Error('CSV file is empty');
+            
+            const headers = rows[0].split(',').map(h => h.trim().toLowerCase());
+            const scoreIndex = headers.findIndex(h => h.includes('score'));
+            
+            if (scoreIndex === -1) throw new Error('CSV must contain a "score" column');
+
+            const result = {
+                validScores: [],
+                invalidRows: [],
+                totalRows: rows.length - 1,
+                validRows: 0
+            };
+
+            for (let i = 1; i < rows.length; i++) {
+                const cells = rows[i].split(',');
+                const score = cells[scoreIndex]?.trim();
+                const num = parseInt(score);
+                
+                if (isValidScore(num)) {
+                    result.validScores.push(num);
+                    result.validRows++;
+                } else {
+                    result.invalidRows.push(i + 1);
+                }
+            }
+
+            return result;
+        }
+
+        function isValidScore(num) {
+            return Number.isInteger(num) && num >= 0 && num <= 10;
+        }
 
         function showResults({ validScores, totalRows, validRows, invalidRows }) {
             const detractors = validScores.filter(s => s <= 6).length;
@@ -310,13 +370,11 @@
             const total = validScores.length;
             const nps = total > 0 ? ((promoters - detractors) / total * 100).toFixed(1) : 0;
 
-            // Update formula text
             document.getElementById('formulaText').innerHTML = `
                 <strong>NPS = (Promoters - Detractors) ÷ Total Respondents × 100</strong><br><br>
                 (${promoters} - ${detractors}) ÷ ${total} × 100 = <span style="color: var(--primary);">${nps}</span>
             `;
 
-            // Update results table
             document.getElementById('resultsTable').innerHTML = `
                 <tr>
                     <td>Detractors (0-6)</td>
@@ -335,11 +393,9 @@
                 </tr>
             `;
 
-            // Update NPS display
             document.getElementById('npsScore').textContent = nps;
             document.getElementById('npsProgress').style.width = `${(parseFloat(nps) + 100) / 2}%`;
 
-            // Show data quality
             document.getElementById('dataQuality').innerHTML = `
                 <div class="alert">
                     <i class="fas fa-database"></i>
@@ -376,6 +432,26 @@
             a.href = url;
             a.download = 'nps-report.csv';
             a.click();
+        }
+
+        function showLoading(show) {
+            document.getElementById('spinner').style.display = show ? 'block' : 'none';
+            dropZone.style.opacity = show ? 0.7 : 1;
+        }
+
+        function showAlert(message, type) {
+            const alert = document.createElement('div');
+            alert.className = `alert ${type === 'error' ? 'alert-error' : 'alert-success'}`;
+            alert.innerHTML = `
+                <i class="fas fa-${type === 'error' ? 'exclamation-triangle' : 'check-circle'}"></i>
+                ${message}
+            `;
+            document.getElementById('alertsContainer').appendChild(alert);
+            setTimeout(() => alert.remove(), 5000);
+        }
+
+        function clearAlerts() {
+            document.getElementById('alertsContainer').innerHTML = '';
         }
     </script>
 </body>
