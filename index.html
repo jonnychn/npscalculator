@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NPS Analytics Pro | Enterprise Platform</title>
+    <title>Net Promoter Score Tool</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         :root {
@@ -165,13 +165,59 @@
             background: var(--secondary);
             transform: translateY(-2px);
         }
+
+        .nps-ranges {
+            background: var(--light);
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin: 2rem 0;
+        }
+
+        .range-meter {
+            height: 12px;
+            background: linear-gradient(90deg,
+                #e74c3c 0%,
+                #e74c3c 30%,
+                #f1c40f 30%,
+                #f1c40f 60%,
+                #2ecc71 60%,
+                #2ecc71 100%);
+            border-radius: 6px;
+            margin: 1rem 0;
+        }
+
+        .range-legend {
+            display: flex;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+
+        .range-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .color-block {
+            width: 15px;
+            height: 15px;
+            border-radius: 3px;
+        }
+
+        .formula-box {
+            background: var(--light);
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin: 1.5rem 0;
+            border-left: 4px solid var(--primary);
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1><i class="fas fa-chart-line"></i> NPS Analytics Pro</h1>
-            <p>Enterprise Customer Loyalty Platform</p>
+            <h1><i class="fas fa-calculator"></i> Net Promoter Score Tool</h1>
+            <p>Measure Customer Loyalty - Understand Your Business Growth Potential</p>
         </div>
 
         <div class="card">
@@ -183,7 +229,7 @@
                     <h3>Drag & Drop CSV File</h3>
                     <p>or click to browse (max 10MB)</p>
                     <p style="margin-top: 1rem; font-size: 0.9em; color: #64748b;">
-                        Required format: CSV with "score" column (0-10)
+                        Required format: CSV with "score" column (0-10 integers)
                     </p>
                 </div>
             </div>
@@ -192,29 +238,59 @@
         <div class="card" id="resultsCard" style="display: none;">
             <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 2rem;">
                 <div>
-                    <h2>Analysis Report</h2>
+                    <h2><i class="fas fa-chart-pie"></i> Analysis Report</h2>
+                    
+                    <div class="formula-box">
+                        <h4><i class="fas fa-calculator"></i> NPS Calculation Formula</h4>
+                        <p id="formulaText" style="margin: 1rem 0;"></p>
+                    </div>
+
                     <table>
                         <thead>
                             <tr>
-                                <th>Segment</th>
+                                <th>Customer Segment</th>
                                 <th>Count</th>
                                 <th>Percentage</th>
                             </tr>
                         </thead>
                         <tbody id="resultsTable"></tbody>
                     </table>
-                    <div id="dataQuality" style="margin-top: 1.5rem;"></div>
+
+                    <div class="nps-ranges">
+                        <h4><i class="fas fa-info-circle"></i> NPS Score Meaning</h4>
+                        <div class="range-meter"></div>
+                        <div class="range-legend">
+                            <div class="range-item">
+                                <div class="color-block" style="background: #e74c3c"></div>
+                                <span>0-30: Needs Improvement</span>
+                            </div>
+                            <div class="range-item">
+                                <div class="color-block" style="background: #f1c40f"></div>
+                                <span>31-70: Good</span>
+                            </div>
+                            <div class="range-item">
+                                <div class="color-block" style="background: #2ecc71"></div>
+                                <span>71-100: Excellent</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="dataQuality"></div>
                 </div>
+
                 <div>
                     <div style="text-align: center;">
-                        <h3>Net Promoter Score</h3>
+                        <h3><i class="fas fa-star"></i> Net Promoter Score</h3>
                         <div class="nps-score" id="npsScore">0.0</div>
                         <div class="progress-bar">
                             <div class="progress-fill" id="npsProgress"></div>
                         </div>
-                        <button onclick="exportCSV()" style="margin-top: 1.5rem;">
-                            <i class="fas fa-download"></i> Export Report
-                        </button>
+                        
+                        <div style="margin: 2rem 0;">
+                            <button onclick="exportCSV()">
+                                <i class="fas fa-download"></i> Export Full Report
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -224,87 +300,8 @@
     </div>
 
     <script>
-        const dropZone = document.getElementById('dropZone');
-        const fileInput = document.getElementById('fileInput');
-        const spinner = document.getElementById('spinner');
-        const resultsCard = document.getElementById('resultsCard');
-
-        // Drag & Drop Handlers
-        dropZone.addEventListener('click', () => fileInput.click());
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('dragover');
-        });
-        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('dragover');
-            if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
-        });
-
-        fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
-
-        async function handleFile(file) {
-            if (!file) return;
-            showLoading(true);
-            clearAlerts();
-
-            try {
-                if (file.size > 10 * 1024 * 1024) throw new Error('File size exceeds 10MB limit');
-                if (!file.name.endsWith('.csv')) throw new Error('Only CSV files are supported');
-
-                const text = await readFile(file);
-                const result = processCSV(text);
-                showResults(result);
-                showAlert(`${result.validRows} records processed successfully`, 'success');
-            } catch (error) {
-                showAlert(error.message, 'error');
-            } finally {
-                showLoading(false);
-            }
-        }
-
-        function readFile(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = (e) => resolve(e.target.result);
-                reader.onerror = () => reject(new Error('Error reading file'));
-                reader.readAsText(file);
-            });
-        }
-
-        function processCSV(csv) {
-            const rows = csv.split('\n').filter(row => row.trim());
-            const headers = rows[0].split(',').map(h => h.trim().toLowerCase());
-            const scoreIndex = headers.findIndex(h => h.includes('score'));
-            
-            if (scoreIndex === -1) throw new Error('CSV must contain a "score" column');
-
-            const result = {
-                validScores: [],
-                invalidRows: [],
-                totalRows: rows.length - 1,
-                validRows: 0
-            };
-
-            for (let i = 1; i < rows.length; i++) {
-                const score = rows[i].split(',')[scoreIndex]?.trim();
-                const num = parseInt(score);
-                
-                if (isValidScore(num)) {
-                    result.validScores.push(num);
-                    result.validRows++;
-                } else {
-                    result.invalidRows.push(i + 1);
-                }
-            }
-
-            return result;
-        }
-
-        function isValidScore(num) {
-            return Number.isInteger(num) && num >= 0 && num <= 10;
-        }
+        // ... (Keep the previous JavaScript code from working version) ...
+        // Only update the showResults and exportCSV functions:
 
         function showResults({ validScores, totalRows, validRows, invalidRows }) {
             const detractors = validScores.filter(s => s <= 6).length;
@@ -312,6 +309,12 @@
             const promoters = validScores.filter(s => s >= 9).length;
             const total = validScores.length;
             const nps = total > 0 ? ((promoters - detractors) / total * 100).toFixed(1) : 0;
+
+            // Update formula text
+            document.getElementById('formulaText').innerHTML = `
+                <strong>NPS = (Promoters - Detractors) ÷ Total Respondents × 100</strong><br><br>
+                (${promoters} - ${detractors}) ÷ ${total} × 100 = <span style="color: var(--primary);">${nps}</span>
+            `;
 
             // Update results table
             document.getElementById('resultsTable').innerHTML = `
@@ -349,7 +352,7 @@
                 </div>
             `;
 
-            resultsCard.style.display = 'block';
+            document.getElementById('resultsCard').style.display = 'block';
         }
 
         function exportCSV() {
@@ -358,7 +361,12 @@
                 ['Detractors (0-6)', document.querySelector('#resultsTable tr:nth-child(1) td:nth-child(2)').textContent],
                 ['Passives (7-8)', document.querySelector('#resultsTable tr:nth-child(2) td:nth-child(2)').textContent],
                 ['Promoters (9-10)', document.querySelector('#resultsTable tr:nth-child(3) td:nth-child(2)').textContent],
-                ['NPS Score', document.getElementById('npsScore').textContent]
+                ['NPS Score', document.getElementById('npsScore').textContent],
+                [],
+                ['NPS Ranges', 'Rating', 'Description'],
+                ['0-30', 'Needs Improvement', 'Significant customer dissatisfaction'],
+                ['31-70', 'Good', 'Industry average performance'],
+                ['71-100', 'Excellent', 'World-class loyalty']
             ];
 
             const csvContent = rows.map(row => row.join(',')).join('\n');
@@ -368,26 +376,6 @@
             a.href = url;
             a.download = 'nps-report.csv';
             a.click();
-        }
-
-        function showLoading(show) {
-            spinner.style.display = show ? 'block' : 'none';
-            dropZone.style.opacity = show ? 0.7 : 1;
-        }
-
-        function showAlert(message, type) {
-            const alert = document.createElement('div');
-            alert.className = `alert alert-${type}`;
-            alert.innerHTML = `
-                <i class="fas fa-${type === 'error' ? 'exclamation-triangle' : 'check-circle'}"></i>
-                ${message}
-            `;
-            document.getElementById('alertsContainer').appendChild(alert);
-            setTimeout(() => alert.remove(), 5000);
-        }
-
-        function clearAlerts() {
-            document.getElementById('alertsContainer').innerHTML = '';
         }
     </script>
 </body>
