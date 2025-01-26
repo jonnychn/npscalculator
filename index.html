@@ -389,9 +389,9 @@
 
             let rating = '';
             if (nps < 0) rating = 'Needs Improvement (-100 to 0)';
-            else if (nps >= 0 && nps < 30) rating = 'Good (0-30)';
-            else if (nps >= 30 && nps < 70) rating = 'Great (30-70)';
-            else rating = 'Excellent (70-100)';
+            else if (nps >= 0 && nps < 30) rating = 'Average (0-30)';
+            else if (nps >= 30 && nps < 70) rating = 'Good (30-70)';
+            else rating = 'World-class (70-100)';
 
             document.getElementById('formulaText').innerHTML = `
                 <strong>NPS = (Promoters - Detractors) ÷ Total Respondents × 100</strong><br><br>
@@ -445,9 +445,9 @@
                 [],
                 ['NPS Ranges', 'Rating', 'Description'],
                 ['-100 to 0', 'Needs Improvement', 'Significant customer dissatisfaction'],
-                ['0-30', 'Good', 'Average performance with room for improvement'],
-                ['30-70', 'Great', 'Above average customer loyalty'],
-                ['70-100', 'Excellent', 'World-class customer experience']
+                ['0-30', 'Average', 'Average performance with room for improvement'],
+                ['30-70', 'Good', 'Above average customer loyalty'],
+                ['70-100', 'World-class', 'World-class customer experience']
             ];
 
             const csvContent = rows.map(row => row.join(',')).join('\n');
