@@ -3,222 +3,126 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NPS Calculator</title>
+    <title>NPS Analytics Pro</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }
-
-        .container {
-            background-color: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-        }
-
-        h1, h2 {
-            color: #2c3e50;
-        }
-
-        .upload-section {
-            border: 2px dashed #3498db;
-            padding: 20px;
-            text-align: center;
-            margin: 20px 0;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 20px 0;
-        }
-
-        th, td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #ddd;
-        }
-
-        th {
-            background-color: #3498db;
-            color: white;
-        }
-
-        .warning {
-            color: #e67e22;
-            padding: 10px;
-            background-color: #fdf2e9;
-            margin: 10px 0;
-        }
-
-        button {
-            background-color: #3498db;
-            color: white;
-            padding: 10px 20px;
-            border: none;
+        /* Add to existing styles */
+        .nps-range-meter {
+            background: linear-gradient(90deg, 
+                #e74c3c 0%, 
+                #e74c3c 33%, 
+                #f1c40f 33%, 
+                #f1c40f 66%, 
+                #2ecc71 66%, 
+                #2ecc71 100%);
+            height: 10px;
             border-radius: 5px;
-            cursor: pointer;
+            margin: 1rem 0;
+            position: relative;
         }
 
-        button:hover {
-            background-color: #2980b9;
+        .nps-marker {
+            position: absolute;
+            top: -5px;
+            width: 2px;
+            height: 20px;
+            background: var(--dark);
+        }
+
+        .score-interpretation {
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            border-left: 4px solid;
+        }
+
+        .score-poor {
+            background: #fdedec;
+            border-color: #e74c3c;
+        }
+
+        .score-fair {
+            background: #fcf4dd;
+            border-color: #f1c40f;
+        }
+
+        .score-good {
+            background: #e8f6f0;
+            border-color: #2ecc71;
+        }
+
+        .score-excellent {
+            background: #e8f6f0;
+            border-color: #27ae60;
+        }
+
+        .range-legend {
+            display: flex;
+            justify-content: space-between;
+            margin: 1rem 0;
+            color: #7f8c8d;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Net Promoter Score (NPS) Calculator</h1>
-        
-        <div class="info-section">
-            <h2>What is NPS?</h2>
-            <p>The Net Promoter Score (NPS) is a customer loyalty metric that measures willingness to recommend a company's products/services. It's calculated using:</p>
-            <ul>
-                <li><strong>Promoters (9-10):</strong> Loyal enthusiasts</li>
-                <li><strong>Passives (7-8):</strong> Satisfied but unenthusiastic</li>
-                <li><strong>Detractors (0-6):</strong> Unhappy customers</li>
-            </ul>
-            <p><strong>Formula:</strong> NPS = (Promoters% - Detractors%) × 100</p>
+    <!-- Add this inside the results card -->
+    <div class="calculation-details">
+        <h4><i class="fas fa-info-circle"></i> NPS Score Interpretation</h4>
+        <div class="nps-range-meter">
+            <div class="nps-marker" id="npsMarker" style="left: 50%"></div>
         </div>
-
-        <div class="upload-section">
-            <h3>Upload CSV File</h3>
-            <input type="file" id="csvFile" accept=".csv">
-            <p>CSV should contain at least one column with scores (0-10).<br>
-            Example format:<br>
-            score,email<br>
-            9,user@example.com<br>
-            10,user2@example.com</p>
+        <div class="range-legend">
+            <span>-100 (Poor)</span>
+            <span>0</span>
+            <span>30</span>
+            <span>70</span>
+            <span>100 (Excellent)</span>
         </div>
-
-        <div id="results" style="display: none;">
-            <h2>Results</h2>
-            <table id="resultsTable">
-                <tr>
-                    <th>Category</th>
-                    <th>Count</th>
-                </tr>
-            </table>
-            
-            <h3 id="npsScore"></h3>
-            <div id="calculationDetails"></div>
-            <button onclick="exportCSV()">Export Results</button>
+        <div id="scoreInterpretation" class="score-interpretation">
+            <h4 id="interpretationTitle">Score Evaluation</h4>
+            <p id="interpretationText" class="text-muted">Calculating score interpretation...</p>
         </div>
-
-        <div id="warnings"></div>
     </div>
 
     <script>
-        function handleFile() {
-            const file = document.getElementById('csvFile').files[0];
-            const reader = new FileReader();
-            
-            reader.onload = function(e) {
-                const csvData = e.target.result;
-                processCSV(csvData);
-            };
-            
-            reader.readAsText(file);
-        }
-
-        function processCSV(csvData) {
-            // Reset previous results
-            document.getElementById('results').style.display = 'none';
-            document.getElementById('warnings').innerHTML = '';
-            
-            const rows = csvData.split('\n');
-            const headers = rows[0].split(',').map(h => h.trim().toLowerCase());
-            const scoreIndex = headers.findIndex(h => h.includes('score'));
-            
-            if (scoreIndex === -1) {
-                alert('No "score" column found in CSV');
-                return;
-            }
-
-            let validScores = [];
-            let invalidRows = [];
-
-            for (let i = 1; i < rows.length; i++) {
-                const cells = rows[i].split(',');
-                const score = cells[scoreIndex]?.trim();
-                
-                if (!score) continue;
-                
-                const num = parseInt(score);
-                if (isNaN(num) || num < 0 || num > 10) {
-                    invalidRows.push(i + 1); // 1-based line numbers
-                } else {
-                    validScores.push(num);
-                }
-            }
-
-            // Show warnings
-            if (invalidRows.length > 0) {
-                const warningDiv = document.createElement('div');
-                warningDiv.className = 'warning';
-                warningDiv.innerHTML = `⚠️ Invalid scores found in rows: ${invalidRows.join(', ')}`;
-                document.getElementById('warnings').appendChild(warningDiv);
-            }
-
-            calculateNPS(validScores);
-        }
-
+        // Add to calculateNPS function
         function calculateNPS(scores) {
-            const detractors = scores.filter(s => s <= 6).length;
-            const passives = scores.filter(s => s >= 7 && s <= 8).length;
-            const promoters = scores.filter(s => s >= 9).length;
-            const total = scores.length;
-            
-            const nps = total > 0 
-                ? ((promoters - detractors) / total * 100).toFixed(1)
-                : 0;
+            // ... existing code ...
 
-            // Update table
-            const table = document.getElementById('resultsTable');
-            while (table.rows.length > 1) table.deleteRow(1);
+            // Update score interpretation
+            const interpretation = document.getElementById('scoreInterpretation');
+            const interpretationTitle = document.getElementById('interpretationTitle');
+            const interpretationText = document.getElementById('interpretationText');
+            const npsMarker = document.getElementById('npsMarker');
+
+            // Position marker (-100 to 100 mapped to 0-100% width)
+            const markerPosition = ((parseFloat(nps) + 100) / 200) * 100;
+            npsMarker.style.left = `${markerPosition}%`;
+
+            // Remove all classes
+            interpretation.className = 'score-interpretation';
             
-            addRow('Detractors (0-6)', detractors);
-            addRow('Passives (7-8)', passives);
-            addRow('Promoters (9-10)', promoters);
-            
-            // Show results
-            document.getElementById('results').style.display = 'block';
-            document.getElementById('npsScore').innerHTML = `NPS Score: ${nps}`;
-            
-            // Show calculation
-            document.getElementById('calculationDetails').innerHTML = `
-                <p>Calculation Details:<br>
-                Total Responses: ${total}<br>
-                NPS = (${promoters} Promoters - ${detractors} Detractors) / ${total} × 100 = ${nps}
-                </p>
-            `;
+            if (nps < 0) {
+                interpretation.classList.add('score-poor');
+                interpretationTitle.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Needs Improvement';
+                interpretationText.textContent = "This score indicates significant customer dissatisfaction. Immediate action recommended to address critical issues.";
+            } else if (nps >= 0 && nps < 30) {
+                interpretation.classList.add('score-fair');
+                interpretationTitle.innerHTML = '<i class="fas fa-check-circle"></i> Fair';
+                interpretationText.textContent = "Average performance with room for improvement. Focus on converting passives to promoters and reducing detractors.";
+            } else if (nps >= 30 && nps < 70) {
+                interpretation.classList.add('score-good');
+                interpretationTitle.innerHTML = '<i class="fas fa-thumbs-up"></i> Good';
+                interpretationText.textContent = "Above average performance. Maintain strengths while identifying opportunities for improvement.";
+            } else {
+                interpretation.classList.add('score-excellent');
+                interpretationTitle.innerHTML = '<i class="fas fa-award"></i> Excellent';
+                interpretationText.textContent = "World-class customer loyalty! Continue nurturing relationships and maintaining high standards.";
+            }
+
+            // Add benchmark comparison
+            interpretationText.innerHTML += `<br><small>Industry average NPS: 32 (Retail: 45, Tech: 35, Banking: 28)</small>`;
         }
-
-        function addRow(category, count) {
-            const row = document.getElementById('resultsTable').insertRow();
-            row.insertCell().textContent = category;
-            row.insertCell().textContent = count;
-        }
-
-        function exportCSV() {
-            const rows = Array.from(document.getElementById('resultsTable').rows)
-                .map(row => Array.from(row.cells).map(cell => cell.textContent).join(','));
-            
-            const csvContent = rows.join('\n');
-            const blob = new Blob([csvContent], { type: 'text/csv' });
-            const url = window.URL.createObjectURL(blob);
-            
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'nps_results.csv';
-            a.click();
-        }
-
-        // Event listener
-        document.getElementById('csvFile').addEventListener('change', handleFile);
     </script>
 </body>
 </html>
